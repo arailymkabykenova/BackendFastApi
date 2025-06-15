@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager & Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+        }
+        .section {
+            flex: 1;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+        }
+        .ai-message {
+            background-color: #f5f5f5;
+        }
+        .task {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        input, textarea, button {
+            margin: 5px 0;
+            padding: 8px;
+            width: 100%;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Task Manager & Chat</h1>
+    
+    <div class="container">
+        <!-- Chat Section -->
+        <div class="section">
+            <h2>Chat with AI</h2>
+            <div id="chat-messages"></div>
+            <input type="text" id="chat-input" placeholder="Type your message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+
+        <!-- Tasks Section -->
+        <div class="section">
+            <h2>Tasks</h2>
+            <div id="tasks-list"></div>
+            
+            <h3>Create Task</h3>
+            <input type="text" id="task-title" placeholder="Task title">
+            <textarea id="task-content" placeholder="Task content"></textarea>
+            <button onclick="createTask()">Create Task</button>
+
+            <h3>Generate Task with AI</h3>
+            <input type="text" id="task-prompt" placeholder="Describe the task you want to generate">
+            <button onclick="generateTask()">Generate Task</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+
+        // Chat functions
+        async function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value;
+            if (!message) return;
+
+            // Add user message to chat
+            addMessageToChat('user', message);
+            input.value = '';
+
+            try {
+                console.log('Sending message to API:', message);
+                const response = await fetch(`${API_URL}/api/chat/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message }),
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Received response:', data);
+                
+                if (data.response) {
+                    addMessageToChat('ai', data.response);
+                } else {
+                    throw new Error('No response from AI');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                addMessageToChat('ai', 'Sorry, there was an error processing your request. Please try again.');
+            }
+        }
+
+        function addMessageToChat(sender, message) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.textContent = message;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Task functions
+        async function loadTasks() {
+            try {
+                const response = await fetch(`${API_URL}/api/tasks/data`);
+                const tasks = await response.json();
+                const tasksList = document.getElementById('tasks-list');
+                tasksList.innerHTML = '';
+                
+                tasks.forEach(task => {
+                    const taskDiv = document.createElement('div');
+                    taskDiv.className = 'task';
+                    taskDiv.innerHTML = `
+                        <h4>${task.title}</h4>
+                        <p>${task.content}</p>
+                        <small>Created: ${new Date(task.created_at).toLocaleString()}</small>
+                    `;
+                    tasksList.appendChild(taskDiv);
+                });
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+            }
+        }
+
+        async function createTask() {
+            const title = document.getElementById('task-title').value;
+            const content = document.getElementById('task-content').value;
+            
+            if (!title || !content) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/tasks/data`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ title, content }),
+                });
+                await response.json();
+                document.getElementById('task-title').value = '';
+                document.getElementById('task-content').value = '';
+                loadTasks();
+            } catch (error) {
+                console.error('Error creating task:', error);
+            }
+        }
+
+        async function generateTask() {
+            const prompt = document.getElementById('task-prompt').value;
+            if (!prompt) return;
+
+            try {
+                const response = await fetch(`${API_URL}/api/tasks/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt }),
+                });
+                await response.json();
+                document.getElementById('task-prompt').value = '';
+                loadTasks();
+            } catch (error) {
+                console.error('Error generating task:', error);
+            }
+        }
+
+        // Load tasks when page loads
+        loadTasks();
+    </script>
+</body>
+</html> 
